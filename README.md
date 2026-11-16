@@ -142,11 +142,11 @@ document to the configured LLM agents and may incur API charges. Start with a sm
 .venv/bin/python -m scripts.run_pipeline --limit 5
 ```
 
-The batch summary should show processed claims, not all claims in `exception`. The script reads
-`data/extracted/**/*.json` by default, using each result's `content.content` as the claim text.
-Use `--input path\to\file.json` (Windows) or `--input path/to/file.json` (macOS) to select a
-specific extraction result. Each run creates new claim rows, so use `--limit 5` for a demo rather
-than repeatedly processing the same documents.
+The batch summary reports the total documents processed, their pipeline statuses, and any exceptions.
+The script reads `data/extracted/**/*.json` by default, using each result's `content.content` as the
+claim text. Use `--input path\to\file.json` (Windows) or `--input path/to/file.json` (macOS) to
+select a specific extraction result. Each run creates new claim rows, so use `--limit 5` for a demo
+rather than repeatedly processing the same documents.
 
 ### 5. Start the dashboard
 
@@ -168,7 +168,7 @@ Keep the server running in this terminal. Open `http://localhost:8001/` for the 
 To stop the server, press **Ctrl+C**. To stop the database when you are finished, run
 `docker compose down` from the project root. Your database data is retained for the next run.
 
-For additional setup details and troubleshooting, see [HOW_TO_RUN.md](./HOW_TO_RUN.md).
+For operational guidance and troubleshooting, see the [runbook](./docs/runbook.md).
 
 ### Microsoft Foundry / Azure OpenAI
 
@@ -202,7 +202,7 @@ The endpoint and key come from your Azure AI Document Intelligence resource (not
 deployment). The model setting is optional; `prebuilt-layout` is the default and extracts readable
 Markdown plus structured page/layout results. Keep the key private.
 
-Install the requirements after updating `requirements.txt`, then run from the project root:
+Run from the project root:
 
 **Windows (PowerShell):**
 

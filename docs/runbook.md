@@ -25,6 +25,17 @@ scripts/local_postgres.sh start
 This helper requires PostgreSQL 14 binaries at `/opt/homebrew/opt/postgresql@14/bin`. Use Docker
 Compose above if PostgreSQL 14 is not installed.
 
+After starting it for the first time, create the application database:
+
+```bash
+/opt/homebrew/opt/postgresql@14/bin/psql -h localhost -p 5434 -U claims_app -d postgres \
+  -c "ALTER USER claims_app WITH PASSWORD 'claims_app_pw';" \
+  -c "CREATE DATABASE insurance_claims OWNER claims_app;"
+```
+
+Set `DATABASE_URL` in `.env` to the port 5434 URL shown above, then continue with table creation and
+seeding below.
+
 ## First-time setup
 
 ```bash
@@ -32,6 +43,7 @@ python3 --version  # Must print Python 3.11.6
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 
+# Docker Compose only; skip if using the Homebrew PostgreSQL option above.
 docker compose up -d postgres
 .venv/bin/python scripts/init_db.py
 .venv/bin/python scripts/generate_synthetic_data.py
@@ -63,6 +75,15 @@ input is `data/extracted`, which must contain JSON results from Azure Document I
   than trusting the field blindly if you suspect drift.
 - **OpenAI API errors during a batch run**: `scripts/run_pipeline.py` logs a `FAILED` line per claim
   and continues; re-run with `--limit` against just the affected claims once resolved.
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---|---|
+| `psql: could not connect to server` | PostgreSQL is not running; start it with Docker Compose or `scripts/local_postgres.sh start`. |
+| `Address already in use` on PostgreSQL startup | Another process owns port 5434; check which PostgreSQL instance is running. |
+| `openai.AuthenticationError` | Check that `OPENAI_API_KEY` in `.env` is valid, or that the Azure OpenAI endpoint, key, and deployment are configured. |
+| A claim has non-empty `missing_documents` | Check that its extracted JSON's `content.content` contains the document text. |
 
 ## Success measures (from the project catalogue)
 
