@@ -39,8 +39,9 @@ docker compose up -d postgres
 ```
 
 Each processed claim can make four live LLM calls (Document, Coverage, Fraud, Communication). Run
-`.venv/bin/python scripts/run_pipeline.py --limit 10` only when you intend to send synthetic claims
-to your configured provider; check its pricing first.
+`.venv/bin/python -m scripts.run_pipeline --limit 10` only when you intend to send
+Azure-extracted claim documents to your configured provider; check its pricing first. The default
+input is `data/extracted`, which must contain JSON results from Azure Document Intelligence.
 
 ## Day-to-day
 

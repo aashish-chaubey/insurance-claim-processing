@@ -1,7 +1,7 @@
 # How to Run — Project 2: Intelligent Insurance Claims Processing
 
 Complete, copy-pasteable instructions to run this project: environment setup → database → synthetic
-data → web dashboard → tests → shutdown. The default local setup uses PostgreSQL in Docker Compose.
+data → web dashboard → shutdown. The default local setup uses PostgreSQL in Docker Compose.
 
 Use Python **3.11.6** and `pip` only. Docker Compose runs PostgreSQL 16 on port **5434**. A separate
 Homebrew PostgreSQL 14 option is available if you prefer not to use Docker.
@@ -105,20 +105,16 @@ Expected: `Tables created.`
 
 ---
 
-## 5. Generate the synthetic dataset (master data + 200 claims)
+## 5. Seed the policy database
 
 ```bash
 .venv/bin/python scripts/generate_synthetic_data.py
 ```
 
 Seeds ~70 claimants with ~84 policies (health/auto/property — some claimants hold more than one
-policy, and some policies get hit by more than one claim, to exercise the additive
-`claimed_amount_ytd` logic), and writes 200 inbound claims to `data/generated/claims.jsonl`, evenly
-spread across the three claim types, with realistic messiness: ~10% reference a policy number that
-doesn't exist, ~10% hit a policy exclusion, ~10% violate the waiting period, ~15% omit standard
-supporting documents, ~8% are vague, ~4% embed a prompt-injection attempt, ~6% target a lapsed
-policy. Settlement amounts are skewed toward small/routine claims (triangular distribution) so the
-auto-approve ceiling is meaningfully exercised.
+policy, and some policies get hit by more than one claim, to exercise additive
+`claimed_amount_ytd` behavior). It also writes a legacy synthetic claims file; the main batch
+pipeline does not use it.
 
 Expected output:
 ```
@@ -128,30 +124,37 @@ Wrote 200 synthetic claims to .../data/generated/claims.jsonl
 
 ---
 
-## 6. Optional: smoke-test the live pipeline (makes real API calls)
+## 6. Extract PDFs with Azure Document Intelligence
+
+Configure `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `AZURE_DOCUMENT_INTELLIGENCE_KEY` in `.env`,
+then follow the platform-specific commands in
+[README.md](README.md#extract-raw-pdfs-with-azure-document-intelligence). The extracted JSON
+files are written to `data/extracted`.
+
+## 7. Optional: smoke-test the live pipeline (makes real API calls)
 
 ```bash
-.venv/bin/python scripts/run_pipeline.py --limit 5
+.venv/bin/python -m scripts.run_pipeline --limit 5
 ```
 
-Each claim may make four LLM calls (Document, Coverage, Fraud, Communication), so start with a small
-batch and consider your provider's pricing. Confirm this works — a mix of
-`approve`/`reject`/`investigate` decisions, no `FAILED` lines — before running the full batch. Common
-failure causes: an invalid OpenAI or Azure OpenAI key/deployment, Postgres not running, or tables not
-created (steps 3–4).
+The pipeline reads Azure extraction JSON by default from `data/extracted`. Each document may make
+four LLM calls (Document, Coverage, Fraud, Communication), so start with a small batch and consider
+your provider's pricing. Confirm this works — a mix of `approve`/`reject`/`investigate` decisions,
+no `FAILED` lines — before running the full batch.
 
 ---
 
-## 7. Optional: run the full batch (all 200 claims, live LLM)
+## 8. Optional: run the full extracted-document batch (live LLM)
 
 ```bash
-.venv/bin/python scripts/run_pipeline.py
+.venv/bin/python -m scripts.run_pipeline
 ```
 
-Runs sequentially and can take substantially longer now that each claim makes up to four LLM calls;
-time and cost depend on the selected model and provider. Safe to interrupt, but rerunning the script
-inserts new claim rows rather than resuming the previous batch. Settlement decisions are idempotent
-per `(claim_id, decision_type)` when an existing claim is explicitly rerun through the API.
+Runs sequentially over extracted JSON files and can take substantially longer now that each document
+makes up to four LLM calls; time and cost depend on the selected model and provider. Safe to
+interrupt, but rerunning inserts new claim rows rather than resuming the previous batch. Settlement
+decisions are idempotent per `(claim_id, decision_type)` when an existing claim is explicitly rerun
+through the API.
 
 Watch progress from another terminal:
 
@@ -184,18 +187,7 @@ docker compose exec -T postgres psql -U claims_app -d insurance_claims \
 
 ---
 
-## 9. Run the test suite
-
-```bash
-.venv/bin/python -m pytest -q
-```
-
-Expected: all tests pass. Runs against in-memory SQLite with LLM calls monkeypatched — no Postgres or
-API credits needed.
-
----
-
-## 10. Shut everything down
+## 9. Shut everything down
 
 ```bash
 # stop the web server: Ctrl+C in its terminal
@@ -214,7 +206,7 @@ scripts/local_postgres.sh stop      # if you used the Homebrew PostgreSQL 14 pat
 | `scripts/local_postgres.sh: ... No such file or directory` | Homebrew PostgreSQL 14 is not installed; use Docker Compose or install PostgreSQL 14 |
 | `openai.AuthenticationError` | `OPENAI_API_KEY` in `.env` is missing/invalid |
 | Azure OpenAI returns `unsupported_value` for `temperature` | Azure requests omit temperature and use the deployment's supported default. Restart the app after updating code. |
-| Almost every claim shows non-empty `missing_documents` | Check `data/generated/claims.jsonl` was generated with the current `scripts/generate_synthetic_data.py` — an earlier version of the generator never stated which documents *were* attached, so the Document Agent had grounds to flag everything as missing. Regenerate the file if in doubt. |
+| Almost every claim shows non-empty `missing_documents` | Check that `data/extracted` contains Azure Document Intelligence JSON results and their `content.content` includes the document text. |
 | Almost no claim is `straight_through` | Check `settlement_auto_approve_max` in `app/config.py` against the settlement amounts you're actually generating — if invoice amounts are much larger than the ceiling, straight-through will rarely trigger by design (that's the guardrail working, not a bug) |
 | A claim's `status` is `exception` | Open it at `/claims/{id}/view`, read `exception_reason`; check `/audit?claim_id=...` for the failing stage; fix root cause; `POST /claims/{id}/rerun` (safe — idempotent) |
 

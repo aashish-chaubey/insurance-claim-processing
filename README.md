@@ -28,7 +28,7 @@ Claim Intake → Document → Coverage → Fraud → Settlement → Communicatio
 ## Stack
 
 Python 3.11.6, FastAPI, SQLAlchemy 2.0, PostgreSQL (Docker Compose by default), OpenAI structured
-outputs (`gpt-4o-mini` by default), server-rendered reviewer dashboard (Jinja2), pytest. A
+outputs (`gpt-4o-mini` by default), server-rendered reviewer dashboard (Jinja2). A
 successful claim runs four LLM stages (document extraction, coverage assessment, fraud triage, and
 communication drafting); the deterministic intake, settlement math, and safety guardrails remain
 application code.
@@ -120,28 +120,33 @@ docker compose ps
 ```
 
 Wait until `docker compose ps` shows PostgreSQL as **healthy**. The generator seeds sample claimant
-and policy records and writes 200 synthetic claims to `data/generated/claims.jsonl`. Generating
-these claims does not yet put them on the dashboard.
+and policy records. It also writes a legacy synthetic `data/generated/claims.jsonl` file; the batch
+pipeline no longer reads that file and instead processes Azure-extracted document JSON from
+`data/extracted`.
 
-### 4. Process sample claims (live LLM calls)
+### 4. Process extracted documents (live LLM calls)
 
-This step sends synthetic claim text to your configured model and may incur API charges. Run a small
-batch to start:
+First complete [Extract raw PDFs with Azure Document Intelligence](#extract-raw-pdfs-with-azure-document-intelligence)
+below and confirm that JSON results exist in `data/extracted`. The pipeline sends each extracted
+document to the configured LLM agents and may incur API charges. Start with a small batch:
 
 **Windows (PowerShell):**
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_pipeline.py --limit 5
+.\.venv\Scripts\python.exe -m scripts.run_pipeline --limit 5
 ```
 
 **macOS (Terminal):**
 
 ```bash
-.venv/bin/python scripts/run_pipeline.py --limit 5
+.venv/bin/python -m scripts.run_pipeline --limit 5
 ```
 
-The batch summary should show processed claims, not all claims in `exception`. The script adds new
-claims each time it runs; use `--limit 5` for a demo rather than repeatedly running the full batch.
+The batch summary should show processed claims, not all claims in `exception`. The script reads
+`data/extracted/**/*.json` by default, using each result's `content.content` as the claim text.
+Use `--input path\to\file.json` (Windows) or `--input path/to/file.json` (macOS) to select a
+specific extraction result. Each run creates new claim rows, so use `--limit 5` for a demo rather
+than repeatedly processing the same documents.
 
 ### 5. Start the dashboard
 
@@ -163,23 +168,6 @@ Keep the server running in this terminal. Open `http://localhost:8001/` for the 
 To stop the server, press **Ctrl+C**. To stop the database when you are finished, run
 `docker compose down` from the project root. Your database data is retained for the next run.
 
-### Run tests (no API calls)
-
-**Windows (PowerShell):**
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-**macOS (Terminal):**
-
-```bash
-.venv/bin/python -m pytest -q
-```
-
-Tests use an in-memory SQLite database and mocked LLM calls; no running PostgreSQL server or API
-credits are needed for the test suite.
-
 For additional setup details and troubleshooting, see [HOW_TO_RUN.md](./HOW_TO_RUN.md).
 
 ### Microsoft Foundry / Azure OpenAI
@@ -198,6 +186,44 @@ AZURE_OPENAI_DEPLOYMENT=your-deployment-name
 `AZURE_OPENAI_DEPLOYMENT` is the deployment name from Foundry, not necessarily the underlying model
 name. Restart the application after changing `.env`. The existing `OPENAI_API_KEY` configuration
 continues to work when `LLM_PROVIDER=openai`.
+
+### Extract raw PDFs with Azure Document Intelligence
+
+The project includes 200 PDFs under `data/raw_documents`. To extract their text and layout, add the
+following **separate Azure Document Intelligence resource** settings to `.env`:
+
+```dotenv
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_KEY=your-document-intelligence-key
+AZURE_DOCUMENT_INTELLIGENCE_MODEL=prebuilt-layout
+```
+
+The endpoint and key come from your Azure AI Document Intelligence resource (not the Azure OpenAI
+deployment). The model setting is optional; `prebuilt-layout` is the default and extracts readable
+Markdown plus structured page/layout results. Keep the key private.
+
+Install the requirements after updating `requirements.txt`, then run from the project root:
+
+**Windows (PowerShell):**
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m scripts.extract_documents
+```
+
+**macOS (Terminal):**
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m scripts.extract_documents
+```
+
+The script submits each PDF to Azure and writes one `.md` file (readable extracted content) and one
+`.json` file (the complete service result, including structured layout) per document under
+`data/extracted`, preserving subfolders. Completed files are skipped on subsequent runs; pass
+`--overwrite` to submit them again. If a request fails, the script reports the failed filename,
+continues with the remaining PDFs, and exits with an error summary. Extracted results can contain
+personal information, so `data/extracted/` is excluded from Git.
 
 ## Guardrails implemented
 
@@ -241,13 +267,13 @@ small/routine claims, like real claims data) so the auto-approve ceiling is mean
 
 Real: FastAPI service, PostgreSQL schema, all 6 agents (4 LLM-backed analysis/drafting stages plus
 deterministic intake and settlement guardrails), maker-checker review
-workflow, idempotency, hash-chained audit log, prompt-injection screening, reviewer dashboard, pytest
-suite.
+workflow, idempotency, hash-chained audit log, prompt-injection screening, reviewer dashboard.
 
-Stubbed (would be real enterprise integrations in production): OCR (bills/photos arrive as
-pre-extracted text), policy administration system (coverage checks run against a local `policies`
-table instead of a real policy admin platform), payment gateway (settlement "execution" increments a
-local `claimed_amount_ytd` instead of triggering a real payout), claim intake channels (claims are
-loaded from a generated file / API call instead of live email/portal/API), customer communication
-channels (drafts are stored, not actually sent), RBAC/SSO (the `decided_by` field is free text
-instead of an authenticated reviewer identity), CI/CD and Kubernetes deployment.
+Stubbed (would be real enterprise integrations in production): OCR extraction can be run separately
+with Azure Document Intelligence, but result files are not yet automatically connected to claim
+intake; policy administration system (coverage checks run against a local `policies` table instead
+of a real policy admin platform); payment gateway (settlement "execution" increments a local
+`claimed_amount_ytd` instead of triggering a real payout); claim intake channels (claims are loaded
+from a generated file / API call instead of live email/portal/API); customer communication channels
+(drafts are stored, not actually sent); RBAC/SSO (the `decided_by` field is free text instead of an
+authenticated reviewer identity); CI/CD and Kubernetes deployment.
