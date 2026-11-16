@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Claim {{ claim.claim_number }}{% endblock %}
+{% block content %}
+<h1>{{ claim.claim_number }}</h1>
+<p><span class="badge status-{{ claim.status }}">{{ claim.status }}</span> &middot; {{ claim.claim_type }}
+&middot; priority: {{ claim.priority }} &middot; fraud score: {{ "%.2f"|format(claim.fraud_score) }}</p>
+
+<h2>Original Claim Narrative</h2>
+<pre>{{ claim.raw_subject }}
+
+{{ claim.raw_body }}</pre>
+
+<h2>Extracted Data</h2>
+<pre>{{ claim.extracted_data }}</pre>
+
+<h2>Coverage Notes</h2>
+<pre>{{ claim.coverage_notes }}</pre>
+
+<h2>Fraud Notes</h2>
+<pre>{{ claim.fraud_notes }}</pre>
+
+<h2>Decisions</h2>
+<ul>
+{% for d in claim.decisions %}
+  <li>{{ d.decision_type }} — {{ d.status }} {% if d.amount %}(amount: {{ d.amount }}){% endif %}
+  {% if d.approved_by %}(by {{ d.approved_by }}){% endif %}</li>
+{% endfor %}
+</ul>
+
+<h2>Communication Draft</h2>
+{% for c in claim.communications %}
+<pre>{{ c.draft_text }}</pre>
+{% endfor %}
+
+<p><a href="/audit?claim_id={{ claim.id }}">View audit trail (JSON)</a></p>
+{% endblock %}

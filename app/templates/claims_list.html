@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Claims{% endblock %}
+{% block content %}
+<h1>Insurance Claims</h1>
+
+<div class="counts">
+  {% for status, n in counts.items() %}
+    <span class="badge status-{{ status }}">{{ status }}: {{ n }}</span>
+  {% endfor %}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim #</th><th>Type</th><th>Priority</th><th>Status</th>
+      <th>Fraud</th><th>Decision</th><th>Amount</th><th>STP</th><th>Received</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in claims %}
+    <tr>
+      <td><a href="/claims/{{ c.id }}/view">{{ c.claim_number }}</a></td>
+      <td>{{ c.claim_type }}</td>
+      <td>{{ c.priority }}</td>
+      <td><span class="badge status-{{ c.status }}">{{ c.status }}</span></td>
+      <td>{{ "%.2f"|format(c.fraud_score) }}</td>
+      <td>{{ c.recommended_decision }}</td>
+      <td>{{ c.proposed_settlement_amount if c.proposed_settlement_amount is not none else "-" }}</td>
+      <td>{{ "yes" if c.straight_through else "no" }}</td>
+      <td>{{ c.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

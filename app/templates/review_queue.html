@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Review Queue{% endblock %}
+{% block content %}
+<h1>Claims Review Queue</h1>
+<p>Decisions below require human review before finalising (reject and investigate always land here;
+approve lands here when confidence is low, fraud score is elevated, or the amount exceeds the
+auto-approve ceiling).</p>
+
+<table>
+  <thead>
+    <tr><th>Claim #</th><th>Decision</th><th>Amount</th><th>Masked Policy #</th><th>Review</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="/claims/{{ row.claim.id }}/view">{{ row.claim.claim_number }}</a></td>
+      <td>{{ row.decision.decision_type }}</td>
+      <td>{{ row.decision.amount or "-" }}</td>
+      <td>{{ row.masked_policy }}</td>
+      <td>
+        <form method="post" action="/review/{{ row.decision.id }}/decide" style="display:inline">
+          <input type="hidden" name="decision" value="approve" />
+          <input type="text" name="notes" placeholder="notes (optional)" />
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="/review/{{ row.decision.id }}/decide" style="display:inline">
+          <input type="hidden" name="decision" value="reject" />
+          <input type="text" name="notes" placeholder="reason" required />
+          <button type="submit">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

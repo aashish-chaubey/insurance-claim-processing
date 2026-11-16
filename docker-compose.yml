@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: claims_postgres
+    environment:
+      POSTGRES_USER: claims_app
+      POSTGRES_PASSWORD: claims_app_pw
+      POSTGRES_DB: insurance_claims
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claims_app -d insurance_claims"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

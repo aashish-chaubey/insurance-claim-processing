@@ -1,0 +1,16 @@
+body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; background: #f6f7f9; color: #1a1a1a; }
+nav { background: #10233f; padding: 12px 24px; }
+nav a { color: white; margin-right: 16px; text-decoration: none; font-weight: 600; }
+main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+table { width: 100%; border-collapse: collapse; background: white; }
+th, td { padding: 8px 12px; border-bottom: 1px solid #e2e5ea; text-align: left; font-size: 14px; }
+th { background: #eef1f5; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: #dde2ea; margin-right: 6px; }
+.status-pending_approval { background: #ffe4a3; }
+.status-exception { background: #ffb3b3; }
+.status-executed { background: #b8f0c0; }
+.status-rejected { background: #ffb3b3; }
+pre { background: white; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+form { margin-bottom: 4px; }
+input[type=text] { padding: 4px; }
+button { padding: 4px 10px; cursor: pointer; }
